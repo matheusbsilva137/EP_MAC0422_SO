@@ -14,22 +14,23 @@ int main(){
     while (1) {
         line = readline("(<user> <diretorios>)");
         while(isspace(*line)) line++;
+
+
         
         printf("%s\n", line);
         command = strtok(line, " ");
-        k
+        
 
         if (strcmp("mkdir", command) == 0){
             flag = strtok(NULL, " ");
             op1 = strtok(NULL, " ");
-
             
         }else if( strcmp("kill", command) == 0){
             flag = strtok(NULL, " ");
             op1 = strtok(NULL, " ");
             
             
-            //kill(atoi(op1), 9);
+            kill(atoi(op1),SIGKILL);
         }else if( strcmp("ln", command) == 0){
             flag = strtok(NULL, " ");
         }
