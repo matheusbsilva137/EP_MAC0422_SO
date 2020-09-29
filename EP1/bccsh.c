@@ -15,7 +15,7 @@ int main(){
         line = readline("(<user> <diretorios>)");
         while(isspace(*line)) line++;
 
-
+        
         
         printf("%s\n", line);
         command = strtok(line, " ");
