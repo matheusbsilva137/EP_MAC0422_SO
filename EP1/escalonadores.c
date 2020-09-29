@@ -10,10 +10,14 @@
 #include <sys/signal.h>
 #include <sys/stat.h>
 
+double tempoExecucao;
+
 typedef struct celulaProcesso{
     char* nome;
-    int t0, dt, deadline;
+    int t0, dt, deadline, executando;
     double tempoRestante;
+    pthread_t tid;
+    pthread_mutex_t mutex;
     processo* prox;
 } processo;
 
@@ -40,14 +44,43 @@ processo* removerPrimeiro(processo* cabeca){
     return prim;
 }
 
+processo* criarNovoProcesso(char *nome, int t0, int dt, int deadline){
+    processo *novo = malloc(sizeof(processo));
+    novo->nome = nome;
+    novo->t0 = t0;
+    novo->dt = dt;
+    novo->tempoRestante = dt;
+    novo->deadline = deadline;
+    novo->executando = 0;
+    novo->prox = NULL;
+    return novo;
+}
+
+int estaVazia(processo* cabeca){
+    return (cabeca->prox == NULL);
+}
+
+void* Thread(void *proc){
+    processo* p = (processo*)proc;
+    int i = 0;
+    for(i = 0; i < p->dt; i += tempoExecucao){
+        pthread_mutex_lock(&(p->mutex));
+        //conta
+        sleep(tempoExecucao);
+        pthread_mutex_unlock(&(p->mutex));
+    }
+}
+
 int main(int argc, char* argv[]){
     FILE* trace, *saida;
     int t = 1, tipoEscalonador = atoi(argv[1]);
     char* nomeR;
     int t0R, dtR, deadlineR, quantLidos, estaEscalonando = 1;
 
-    processo* filaEscalonador = malloc(sizeof(processo));
+    processo* filaEscalonador = malloc(sizeof(processo)); 
     filaEscalonador->prox = NULL;
+    processo* ultimo = filaEscalonador;
+    processo* processoEmExecucao = NULL;
 
     trace = fopen(argv[2], "r");
     saida = fopen(argv[3], "w");
@@ -57,9 +90,30 @@ int main(int argc, char* argv[]){
     while (estaEscalonando == 1){
         if (quantLidos == 4 && t0R == t){
             do{
-
+                if(argv[1] == 2){
+                    //ver aonde colocar na fila
+                }
+                else{
+                    processo* novo = criarNovoProcesso(nomeR, t0R, dtR, deadlineR);
+                    inserirDepois(ultimo, novo);
+                    ultimo = novo;
+                }
             }while (quantLidos = fscanf(trace, "%s %d %d %d", nomeR, t0R, dtR, deadlineR) && t0R == t);
         }
+        if(processoEmExecucao == NULL){
+            processoEmExecucao = removerPrimeiro(filaEscalonador);
+            if(processoEmExecucao != NULL){
+                pthread_create(&(processoEmExecucao->tid), NULL,Thread, (void*)processoEmExecucao);
+                pthread_mutex_unlock(&(processoEmExecucao->mutex));
+                pthread_mutex_lock(&(processoEmExecucao->mutex));
+            }
+        }
+        else{
+            
+            pthread_mutex_unlock(&(processoEmExecucao->mutex));
+            pthread_mutex_lock(&(processoEmExecucao->mutex));
+        }
+
 
         //estaEscalonando = está lendo ou fila do escalonador não vazia
         t++;
