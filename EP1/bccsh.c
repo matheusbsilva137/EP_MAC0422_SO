@@ -53,8 +53,8 @@ int main(){
                 //funcionando apenas para o du
                 op1 = strtok(NULL, " ");
                 op2 = strtok(NULL, " ");
-                char* args[] = {command, op1, op2};
-                execve(command, args, NULL);
+                char* args[] = {command, op1, op2, (char *)0};
+                execve(command, args, (char*const*)0);
             }
         }
         free(prompt);
