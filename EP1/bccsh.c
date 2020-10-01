@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 
 int main(){
-    char* line, *command, *flagUsr, *op1, *op2, *username, *prompt;
+    char* line, *command, *flagUsr, *op1, *op2, *op3, *username, *prompt;
     int status;
     char dir[150];
     pid_t c;
@@ -26,7 +26,6 @@ int main(){
         add_history(line);
         while(isspace(*line)) line++;
         
-        printf("%s\n", line);
         command = strtok(line, " ");
         
         if (strcmp("mkdir", command) == 0){
@@ -51,10 +50,26 @@ int main(){
                 //uso do status
             } else {
                 //funcionando apenas para o du
-                op1 = strtok(NULL, " ");
-                op2 = strtok(NULL, " ");
-                char* args[] = {command, op1, op2, (char *)0};
-                execve(command, args, (char*const*)0);
+                if (strcmp("./ep1", command)){
+                    op1 = strtok(NULL, " ");
+                    op2 = strtok(NULL, " ");
+                    op3 = strtok(NULL, " ");
+
+                    char* args[] = {command, op1, op2, op3, (char *)0};
+                    execve(command, args, (char*const*)0);
+                }else if(strcmp("/usr/bin/du", command)){
+                    op1 = strtok(NULL, " ");
+                    op2 = strtok(NULL, " ");
+
+                    char* args[] = {command, op1, op2, (char *)0};
+                    execve(command, args, (char*const*)0);
+                }else if(strcmp("/usr/bin/traceroute", command)){
+                    op1 = strtok(NULL, " ");
+                    
+                    char* args[] = {command, op1, (char *)0};
+                    execve(command, args, (char*const*)0);
+                }
+                
             }
         }
         free(prompt);

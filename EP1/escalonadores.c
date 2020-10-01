@@ -10,6 +10,8 @@
 
 double tempoExecucao;
 pthread_mutex_t sem;
+FILE* saida;
+int t = 1;
 
 typedef struct celulaProcesso{
     char* nome;
@@ -69,9 +71,7 @@ void* Thread(void *proc){
     double i = 0;
     for(i = 0; i < p->dt; i += tempoExecucao){
         //conta
-        printf("Dormiu\n");
         sleep(tempoExecucao);
-        printf("Acordou\n");
         p->tempoRestante -= tempoExecucao;
         pthread_mutex_unlock(&(sem));
         pthread_mutex_lock(&(p->mutex));
@@ -79,6 +79,19 @@ void* Thread(void *proc){
 }
 
 void atualizarExecucao(processo* filaEscalonador, processo* novaExecucao, int tipoEscalonador){
+    if (novaExecucao != NULL){
+        //Preempção
+        inserirDepois(ultimo, processoEmExecucao);
+        ultimo = processoEmExecucao;
+        processoEmExecucao = novaExecucao;
+        
+        printf("%s após preempção\n", processoEmExecucao->nome);
+        pthread_mutex_lock(&(processoEmExecucao->mutex));
+        if (processoEmExecucao->tid == 0)
+            pthread_create(&(processoEmExecucao->tid), NULL,Thread, (void*)processoEmExecucao);
+        pthread_mutex_lock(&(sem));
+    }
+    
     if(processoEmExecucao == NULL){
         if ( (tipoEscalonador == 1 || tipoEscalonador == 3) || (tipoEscalonador == 2 && novaExecucao == NULL)){
             processoEmExecucao = removerPrimeiro(filaEscalonador);
@@ -98,32 +111,32 @@ void atualizarExecucao(processo* filaEscalonador, processo* novaExecucao, int ti
             pthread_mutex_lock(&(processoEmExecucao->mutex));
         }
     }else{
-        printf("%s\n", processoEmExecucao->nome);
+        printf("%s Dentro\n", processoEmExecucao->nome);
         pthread_mutex_unlock(&(processoEmExecucao->mutex));
-        pthread_mutex_lock(&(sem));
 
-        if (processoEmExecucao->tempoRestante <= 0){
-            pthread_mutex_unlock(&(processoEmExecucao->mutex));
-            pthread_mutex_unlock(&(sem));
-            pthread_join(processoEmExecucao->tid, NULL);
-            pthread_mutex_destroy(&(processoEmExecucao->mutex));
+        if (processoEmExecucao->tempoRestante > 0)
+            pthread_mutex_lock(&(sem));
+    }
 
-            free(processoEmExecucao->nome);
-            free(processoEmExecucao);
+    if (processoEmExecucao->tempoRestante <= 0){
+        printf("LDSLKNDSNDFSIUJNJDFS\n");
+        fprintf(saida, "%s %d %d\n", processoEmExecucao->nome, t + 1, t + 1 - processoEmExecucao->t0);
 
-            processoEmExecucao = NULL;
-        }else if (novaExecucao != NULL){
-            //Preempção
-            inserirDepois(ultimo, processoEmExecucao);
-            ultimo = processoEmExecucao;
-            processoEmExecucao = novaExecucao;
-        }
+        pthread_mutex_unlock(&(processoEmExecucao->mutex));
+        pthread_mutex_unlock(&(sem));
+        pthread_join(processoEmExecucao->tid, NULL);
+        pthread_mutex_destroy(&(processoEmExecucao->mutex));
+
+        free(processoEmExecucao->nome);
+        free(processoEmExecucao);
+
+        processoEmExecucao = NULL;
     }
 }
 
 int main(int argc, char* argv[]){
-    FILE* trace, *saida;
-    int t = 1, tipoEscalonador = atoi(argv[1]);
+    FILE* trace;
+    int tipoEscalonador = atoi(argv[1]);
     char nomeR[30];
     int t0R, dtR, deadlineR, quantLidos, estaEscalonando = 1;
 
@@ -140,23 +153,27 @@ int main(int argc, char* argv[]){
     quantLidos = fscanf(trace, "%s%d%d%d", nomeR, &t0R, &dtR, &deadlineR);
     printf("%s", nomeR);
 
-    while (estaEscalonando == 1){
+    while (t < 19){
         novaExecucao = NULL;
         printf("OALAOLA %d\n", t);
         printf("Quantl lidos: %d\n", quantLidos);
         if (quantLidos == 4 && t0R == t){
             do{
-                printf("OI\n");
-                if(tipoEscalonador == 2){
-                    //ver aonde colocar na fila
+                processo* novo = criarNovoProcesso(nomeR, t0R, dtR, deadlineR);
 
-                }
-                else{
-                    processo* novo = criarNovoProcesso(nomeR, t0R, dtR, deadlineR);
+                if((processoEmExecucao != NULL && tipoEscalonador == 2 && dtR < processoEmExecucao->tempoRestante)
+                    && (novaExecucao == NULL || dtR < novaExecucao->tempoRestante)){
+                    
+                    if (novaExecucao != NULL){
+                        inserirDepois(ultimo, novaExecucao);
+                        ultimo = novaExecucao;
+                    }
+                    novaExecucao = novo;
+                }else{
                     inserirDepois(ultimo, novo);
                     ultimo = novo;
-                    printf("ULTIMO %s\n", ultimo->nome);
                 }
+                
                 processo* a;
                 for (a = filaEscalonador->prox; a != NULL; a = a->prox)
                     printf("%s %d\n", a->nome, a->dt);
@@ -170,4 +187,6 @@ int main(int argc, char* argv[]){
         estaEscalonando = (quantLidos == 4 || filaEscalonador->prox != NULL || processoEmExecucao != NULL);
         t++;
     }
+    fclose(saida);
+    fclose(trace);
 }
