@@ -4,19 +4,22 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
+#include <time.h>
 #include <sys/wait.h>
 #include <sys/signal.h>
 #include <sys/stat.h>
+#include <bits/sched.h>
 
 double tempoExecucao;
 pthread_mutex_t sem;
 FILE* saida;
 int t = 1, mudContexto = 0, ultimaExecucao = -1;
+char *opcao_d;
 
 typedef struct celulaProcesso{
     char* nome;
-    int t0, dt, deadline, executando;
-    double tempoRestante;
+    int t0, deadline, executando;
+    double tempoRestante, dt;
     pthread_t tid;
     pthread_mutex_t mutex;
     struct celulaProcesso* prox;
@@ -69,14 +72,11 @@ int estaVazia(processo* cabeca){
 void* Thread(void *proc){
     processo* p = (processo*)proc;
     double i = 0;
-    for(i = 0; i < p->dt; i += tempoExecucao){
+    for(i = 0; p->dt - i > tempoExecucao; i += tempoExecucao){
         //conta
-        printf("%s -> %lf\n", p->nome, p->tempoRestante);
-        sleep(tempoExecucao);
+        usleep(tempoExecucao*1000000);
         p->tempoRestante -= tempoExecucao;
-        printf("SEM1 ----------------------\n");
         pthread_mutex_unlock(&(sem));
-        printf("SEM2 ----------------------\n");
         pthread_mutex_lock(&(p->mutex));
     }
 }
@@ -84,27 +84,33 @@ void* Thread(void *proc){
 void atualizarExecucao(processo* filaEscalonador, processo* novaExecucao, int tipoEscalonador){
     if (novaExecucao != NULL){
         //Preempção
+        if ( t - ultimaExecucao == 1 || processoEmExecucao != NULL) mudContexto++;
         if (processoEmExecucao != NULL){
             inserirDepois(ultimo, processoEmExecucao);
             ultimo = processoEmExecucao;
-        }
+            if(strcmp(opcao_d, "d") == 0) fprintf(stderr, "O processo %s parou de usar a CPU %d\n", processoEmExecucao->nome, sched_getcpu());
+        }else pthread_mutex_lock(&(sem));
+
         processoEmExecucao = novaExecucao;
+        if(strcmp(opcao_d, "d") == 0) fprintf(stderr, "O processo %s comecou a usar a CPU %d\n", processoEmExecucao->nome, sched_getcpu());
+        if (processoEmExecucao->tid == 0){
+            pthread_mutex_unlock(&(sem));
 
-        if ( t - ultimaExecucao == 1 ) mudContexto++;
-
-        printf("%s após preempção\n", processoEmExecucao->nome);
-        pthread_mutex_lock(&(processoEmExecucao->mutex));
-        if (processoEmExecucao->tid == 0)
-            pthread_create(&(processoEmExecucao->tid), NULL,Thread, (void*)processoEmExecucao);
-        pthread_mutex_lock(&(sem));
+            pthread_mutex_lock(&(processoEmExecucao->mutex));
+            pthread_mutex_lock(&(sem));
+            if (processoEmExecucao->tid == 0){
+                pthread_create(&(processoEmExecucao->tid), NULL,Thread, (void*)processoEmExecucao);
+            }
+            pthread_mutex_lock(&(sem));
+        }else novaExecucao = NULL;
     }
     
     if(processoEmExecucao == NULL){
         if ( (tipoEscalonador == 1 || tipoEscalonador == 3) || (tipoEscalonador == 2 && novaExecucao == NULL)){
             processoEmExecucao = removerPrimeiro(filaEscalonador);
             if(processoEmExecucao != NULL){
+                if(strcmp(opcao_d, "d") == 0) fprintf(stderr, "O processo %s comecou a usar a CPU %d\n", processoEmExecucao->nome, sched_getcpu());
                 if ( t - ultimaExecucao == 1 ) mudContexto++;
-                printf("%s\n", processoEmExecucao->nome);
                 if (processoEmExecucao->tid == 0)
                     pthread_mutex_lock(&(processoEmExecucao->mutex));
                 pthread_mutex_lock(&(sem));
@@ -117,24 +123,24 @@ void atualizarExecucao(processo* filaEscalonador, processo* novaExecucao, int ti
         }else{
             if ( t - ultimaExecucao == 1 ) mudContexto++;
             processoEmExecucao = novaExecucao;
-            if (processoEmExecucao->tid == 0)
+            if(strcmp(opcao_d, "d") == 0) fprintf(stderr, "O processo %s comecou a usar a CPU %d\n", processoEmExecucao->nome, sched_getcpu());
+            if (processoEmExecucao->tid == 0){
                 pthread_create(&(processoEmExecucao->tid), NULL,Thread, (void*)processoEmExecucao);
+            }
             pthread_mutex_unlock(&(processoEmExecucao->mutex));
             pthread_mutex_lock(&(processoEmExecucao->mutex));
         }
     }else if (novaExecucao == NULL){
-        printf("%s Dentro\n", processoEmExecucao->nome);
         pthread_mutex_unlock(&(processoEmExecucao->mutex));
 
-        if (processoEmExecucao->tempoRestante > 0)
+        if (processoEmExecucao->tempoRestante > 0.0)
             pthread_mutex_lock(&(sem));
     }
 
-    if (processoEmExecucao->tempoRestante <= 0){
-        printf("LDSLKNDSNDFSIUJNJDFS\n");
+    if (processoEmExecucao != NULL && processoEmExecucao->tempoRestante < tempoExecucao){
         ultimaExecucao = t;
         fprintf(saida, "%s %d %d\n", processoEmExecucao->nome, t + 1, t + 1 - processoEmExecucao->t0);
-
+        if(strcmp(opcao_d, "d") == 0) fprintf(stderr, "O processo %s parou de usar a CPU %d\n", processoEmExecucao->nome, sched_getcpu());
         pthread_mutex_unlock(&(processoEmExecucao->mutex));
         pthread_mutex_unlock(&(sem));
         pthread_join(processoEmExecucao->tid, NULL);
@@ -154,7 +160,8 @@ int main(int argc, char* argv[]){
     int t0R, dtR, deadlineR, quantLidos, estaEscalonando = 1;
     int processadorLivre = 0;
 
-    tempoExecucao = 1;
+    if (tipoEscalonador == 3) tempoExecucao = 0.1; 
+    else tempoExecucao = 0.1;
 
     processo* filaEscalonador = malloc(sizeof(processo)); 
     filaEscalonador->prox = NULL;
@@ -163,14 +170,12 @@ int main(int argc, char* argv[]){
 
     trace = fopen(argv[2], "r");
     saida = fopen(argv[3], "w");
+    opcao_d = argv[4];
 
     quantLidos = fscanf(trace, "%s%d%d%d", nomeR, &t0R, &dtR, &deadlineR);
-    printf("%s", nomeR);
 
     while (estaEscalonando == 1){
         novaExecucao = NULL;
-        printf("OALAOLA %d\n", t);
-        printf("Quant lidos: %d\n", quantLidos);
         if (quantLidos == 4 && t0R == t){
             do{
                 processo* novo = criarNovoProcesso(nomeR, t0R, dtR, deadlineR);
@@ -194,9 +199,6 @@ int main(int argc, char* argv[]){
                 }
                 
                 processo* a;
-                for (a = filaEscalonador->prox; a != NULL; a = a->prox)
-                    printf("%s %d\n", a->nome, a->dt);
-                printf("\n");
                 quantLidos = fscanf(trace, "%s %d %d %d", nomeR, &t0R, &dtR, &deadlineR);
             }while (quantLidos == 4 && t0R == t);
         }
@@ -206,7 +208,11 @@ int main(int argc, char* argv[]){
             processoEmExecucao = NULL;
         }
 
-        atualizarExecucao(filaEscalonador, novaExecucao, tipoEscalonador);
+        if (tipoEscalonador == 3){
+            novaExecucao = removerPrimeiro(filaEscalonador);
+            if (filaEscalonador->prox == NULL) ultimo = filaEscalonador;
+            atualizarExecucao(filaEscalonador, novaExecucao, 3);
+        }else atualizarExecucao(filaEscalonador, novaExecucao, tipoEscalonador);
 
         estaEscalonando = (quantLidos == 4 || filaEscalonador->prox != NULL || processoEmExecucao != NULL);
         t++;
