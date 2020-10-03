@@ -133,6 +133,7 @@ void atualizarExecucao(processo* filaEscalonador, processo* novaExecucao, int ti
     if (processoEmExecucao != NULL && processoEmExecucao->tempoRestante < tempoExecucao){
         ultimaExecucao = t;
         fprintf(saida, "%s %d %d\n", processoEmExecucao->nome, t + 1, t + 1 - processoEmExecucao->t0);
+        fprintf(stderr, "Saída: %s %d %d\n", processoEmExecucao->nome, t + 1, t + 1 - processoEmExecucao->t0R);
 
         pthread_mutex_unlock(&(processoEmExecucao->mutex));
         pthread_mutex_unlock(&(sem));
@@ -170,6 +171,7 @@ int main(int argc, char* argv[]){
         novaExecucao = NULL;
         if (quantLidos == 4 && t0R == t){
             do{
+                fprintf(stderr, "Entrada: ['%s'] - %d; %d; %d\n", nomeR, t0R, dtR, deadlineR);
                 processo* novo = criarNovoProcesso(nomeR, t0R, dtR, deadlineR);
                 
                 if (processoEmExecucao == NULL){
