@@ -46,6 +46,7 @@ removendo-o da lista.
 processo* removerPrimeiro(processo* cabeca){
     processo* prim = cabeca->prox;
     if (prim != NULL){
+        if (prim->prox == NULL) ultimo = cabeca;
         cabeca->prox = prim->prox;
         prim->prox = NULL;
     }
