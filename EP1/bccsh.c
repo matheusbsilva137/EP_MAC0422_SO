@@ -20,8 +20,6 @@ int main(){
         username = getenv("USERNAME");
         prompt = malloc(sizeof(username) + sizeof(dir) + 4);
 
-                        fprintf(stderr, "AI\n");
-
         snprintf(prompt, sizeof(username) + sizeof(dir) + 4, "{%s@%s} ", username, dir);
 
         line = readline(prompt);
@@ -46,10 +44,11 @@ int main(){
             
             symlink(op1, op2);
         }else{
+            fflush(stdout);
             if ((fork()) != 0) {
                 waitpid(-1, &status, 0);
             } else {
-                if (strcmp("./ep1", command)){
+                if (strcmp("./ep1", command) == 0){
                     op1 = strtok(NULL, " ");
                     op2 = strtok(NULL, " ");
                     op3 = strtok(NULL, " ");
@@ -61,19 +60,18 @@ int main(){
                         char* args[] = {command, op1, op2, op3, (char *)0};
                         execve(command, args, (char*const*)0);
                     }
-                }else if(strcmp("/usr/bin/du", command)){
+                }else if(strcmp("/usr/bin/du", command) == 0){
                     op1 = strtok(NULL, " ");
                     op2 = strtok(NULL, " ");
 
                     char* args[] = {command, op1, op2, (char *)0};
                     execve(command, args, (char*const*)0);
-                }else if(strcmp("/usr/bin/traceroute", command)){
+                }else if(strcmp("/usr/bin/traceroute", command) == 0){
                     op1 = strtok(NULL, " ");
                     
                     char* args[] = {command, op1, (char *)0};
                     execve(command, args, (char*const*)0);
-                }
-                
+                }  
             }
         }
         free(prompt);

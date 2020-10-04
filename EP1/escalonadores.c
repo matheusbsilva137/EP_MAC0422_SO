@@ -16,7 +16,7 @@ double tempoExecucao;
 pthread_mutex_t sem;
 FILE* saida;
 int t = 1, mudContexto = 0, ultimaExecucao = -1;
-int opcao_d;
+int opcao_d, quantDeadlinesCump = 0;
 
 typedef struct celulaProcesso{
     char* nome;
@@ -79,7 +79,7 @@ void* Thread(void *proc){
         for (j = 1; j <= 100*tempoExecucao; j++){
             r *= j;
         }
-        usleep((int) (tempoExecucao*1000000));
+        usleep((int) (tempoExecucao*1000));
         p->tempoRestante -= tempoExecucao;
         pthread_mutex_unlock(&(sem));
         pthread_mutex_lock(&(p->mutex));
@@ -142,13 +142,15 @@ void atualizarExecucao(processo* filaEscalonador, processo* novaExecucao, int ti
             pthread_mutex_lock(&(sem));
     }
 
-    if (processoEmExecucao != NULL && processoEmExecucao->tempoRestante < tempoExecucao){
+    if (processoEmExecucao != NULL && processoEmExecucao->tempoRestante <= tempoExecucao - TOL){
         ultimaExecucao = t;
-        if(opcao_d) fprintf(saida, "%s %d %d\n", processoEmExecucao->nome, t + 1, t + 1 - processoEmExecucao->t0);
+        fprintf(saida, "%s %d %d\n", processoEmExecucao->nome, t + 1, t + 1 - processoEmExecucao->t0);
 
         if(opcao_d) fprintf(stderr, "Saída: %s %d %d\n", processoEmExecucao->nome, t + 1, t + 1 - processoEmExecucao->t0);
         if(opcao_d) fprintf(stderr, "O processo %s parou de usar a CPU %d\n", processoEmExecucao->nome, sched_getcpu());
 
+
+        if (t+1 <= processoEmExecucao->deadline) quantDeadlinesCump++;
         pthread_mutex_unlock(&(processoEmExecucao->mutex));
         pthread_mutex_unlock(&(sem));
         pthread_join(processoEmExecucao->tid, NULL);
@@ -162,13 +164,13 @@ void atualizarExecucao(processo* filaEscalonador, processo* novaExecucao, int ti
 }
 
 int main(int argc, char* argv[]){
-    FILE* trace;
+    FILE* trace, *deadline, *mudancaContexto;
     int tipoEscalonador = atoi(argv[1]);
     char nomeR[30];
     int t0R, dtR, deadlineR, quantLidos, estaEscalonando = 1;
     int processadorLivre = 0;
 
-    if (tipoEscalonador == 3) tempoExecucao = 0.6; 
+    if (tipoEscalonador == 3) tempoExecucao = 0.8; 
     else tempoExecucao = 1;
 
     processo* filaEscalonador = malloc(sizeof(processo)); 
@@ -178,6 +180,17 @@ int main(int argc, char* argv[]){
 
     trace = fopen(argv[2], "r");
     saida = fopen(argv[3], "w");
+    if (tipoEscalonador == 1) {
+        deadline = fopen("deadlines_esc1.txt", "a");
+        mudancaContexto = fopen("contextos_esc1.txt", "a");
+    }else if (tipoEscalonador == 2){
+        deadline = fopen("deadlines_esc2.txt", "a");
+        mudancaContexto = fopen("contextos_esc2.txt", "a");
+    }else{
+        deadline = fopen("deadlines_esc3.txt", "a");
+        mudancaContexto = fopen("contextos_esc3.txt", "a");
+    }
+
     opcao_d = (argc == 5 && strcmp(argv[4], "d") == 0);
 
     quantLidos = fscanf(trace, "%s%d%d%d", nomeR, &t0R, &dtR, &deadlineR);
@@ -227,7 +240,9 @@ int main(int argc, char* argv[]){
         t++;
     }
     fprintf(saida, "%d", mudContexto);
+    fprintf(mudancaContexto, "%d\n", mudContexto);
     if(opcao_d) fprintf(stderr, "%d\n", mudContexto);
+    fprintf(deadline, "%d\n", quantDeadlinesCump);
     fclose(saida);
     fclose(trace);
 }
