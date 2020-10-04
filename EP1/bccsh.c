@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 
 int main(){
-    char* line, *command, *flagUsr, *op1, *op2, *op3, *username, *prompt;
+    char* line, *command, *flagUsr, *op1, *op2, *op3, *op4, *username, *prompt;
     int status;
     char dir[150];
     pid_t c;
@@ -19,6 +19,8 @@ int main(){
         getcwd(dir, sizeof(dir));
         username = getenv("USERNAME");
         prompt = malloc(sizeof(username) + sizeof(dir) + 4);
+
+                        fprintf(stderr, "AI\n");
 
         snprintf(prompt, sizeof(username) + sizeof(dir) + 4, "{%s@%s} ", username, dir);
 
@@ -46,17 +48,19 @@ int main(){
         }else{
             if ((fork()) != 0) {
                 waitpid(-1, &status, 0);
-
-                //uso do status
             } else {
-                //funcionando apenas para o du
                 if (strcmp("./ep1", command)){
                     op1 = strtok(NULL, " ");
                     op2 = strtok(NULL, " ");
                     op3 = strtok(NULL, " ");
-
-                    char* args[] = {command, op1, op2, op3, (char *)0};
-                    execve(command, args, (char*const*)0);
+                    op4 = strtok(NULL, " ");
+                    if (op4){
+                        char* args[] = {command, op1, op2, op3, op4, (char *)0};
+                        execve(command, args, (char*const*)0);
+                    }else{
+                        char* args[] = {command, op1, op2, op3, (char *)0};
+                        execve(command, args, (char*const*)0);
+                    }
                 }else if(strcmp("/usr/bin/du", command)){
                     op1 = strtok(NULL, " ");
                     op2 = strtok(NULL, " ");
