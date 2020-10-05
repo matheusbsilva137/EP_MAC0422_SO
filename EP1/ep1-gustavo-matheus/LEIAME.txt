@@ -1,0 +1,11 @@
+Gustavo Santos Morais - 11221932
+Matheus Barbosa Silva - 11221741
+
+A compilação de ambos os programas é feita utilizando o comando make no terminal.
+Após a execução do comando, serão gerados dois arquivos binários que podem ser usados da seguinte forma:
+ * BCCSH: ./bccsh
+ * ESCALONADOR DE PROCESSOS: ./ep1 <tipo-escalonador> <arquivo-entrada> <arquivo-saida> <d>
+O tipo de escalonador é um número entre 1 e 3, onde 1 designa o escalonador FCFS, 2 designa o escalonador SRTN e 3 designa o escalonador Round Robin.
+O ESCALONADOR DE PROCESSOS está dividido em dois arquivos: um header "escalonador.h" e o arquivo "ep1.c", que aciona as funcionalidades do header.
+
+Obs.: um dos integrantes observou que a compilação do código gera um warning com relação a uma das funções utilizadas (sched_getcpu). Entretanto, o mesmo warning não é gerado para o outro integrante da dupla. Assim, não pudemos concluir se o warning gerado tem relação a biblitoecas específicas de cada integrante ou se ocorreu por conta de algum outro empecilho.
