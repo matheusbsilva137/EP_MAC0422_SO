@@ -3,34 +3,61 @@
 #include <pthread.h>
 #include <string.h>
 #include <math.h>
+#define _USE_XOPEN2K
 
-int** pista;
+pthread_mutex_t** pista;
 int d, n, quantCiclistasAtivos;
 int* primPistaVazia;
+pthread_barrier_t *barreira;
 
 typedef struct ciclista{
     int volta;
     int sprint;
     int velocidade;
     int instante;
-
-    //thread
+    int pistaCic;
+    double posCic;
+    
+    pthread_t tid;
 } ciclista;
 
 ciclista** ciclistas; 
+
+void* Thread(void* barrier){
+    printf("Chegou na barreira");
+    pthread_barrier_wait(barreira);
+    printf("Passou da barreira!");
+}
 
 ciclista* criarCiclista(){
     ciclista* c = malloc(sizeof(ciclista));
     c->volta = 0;
     c->sprint = 0;
     c->velocidade = 30;
-    
-    //thread
+    c->instante = 0;
 
-}
+    int achouPosicao = 0, posCiclista, pistaCiclista, max = ((int) ceil(((double)n)/5.0));
+    while (!achouPosicao){
+        posCiclista = rand()%max;
+        if (posCiclista % 2 == 0) pistaCiclista = primPistaVazia[posCiclista];
+        else pistaCiclista =  5 + primPistaVazia[posCiclista];
 
-void* Thread(){
+        printf("%d %d\n", posCiclista, pistaCiclista);
 
+        if ((pistaCiclista <= 4 || posCiclista%2 != 0)
+            && (pistaCiclista <= 9 || posCiclista%2 != 1)
+            && pthread_mutex_trylock(&(pista[posCiclista][pistaCiclista])) == 0){
+            
+            primPistaVazia[posCiclista]++;
+            c->pistaCic = pistaCiclista;
+            c->posCic = posCiclista;
+            achouPosicao = 1;
+
+            pthread_create(&(c->tid), NULL, Thread, (void*) barreira);
+            printf("Thread criada!\n");
+        }
+    }
+    return c;
 }
 
 /*
@@ -51,27 +78,26 @@ void sortearVelocidade(ciclista* c){
 }
 
 void iniciarPista(int d, int n){
+    pthread_barrier_init(barreira, NULL, quantCiclistasAtivos);
     srand(time(NULL));
 
     quantCiclistasAtivos = n;
     primPistaVazia = malloc(d*sizeof(int));
     memset(primPistaVazia, 0, d*sizeof(int));
 
-    pista = malloc(d*sizeof(int*));
+    pista = malloc(d*sizeof(pthread_mutex_t *));
     for (int i = 0; i < d; i++){
-        pista[i] = malloc(10*sizeof(int));
-        memset(pista[i], 0, 10*sizeof(int));
+        pista[i] = malloc(10*sizeof(pthread_mutex_t));
+        for (int j = 0; j < 10; j++) pthread_mutex_init(&(pista[i][j]), NULL);
     }
 
     ciclistas = malloc( (n+1)*sizeof(ciclista*));
-    for (int i = 0; i < n; i++){
+    for (int i = 0; i < n; i++)
         ciclistas[i+1] = criarCiclista();
 
-        int pos = rand()%d;
-        while (primPistaVazia[pos] < 5) pos = rand()%d;
-        pista[pos][primPistaVazia[pos]] = i+1;
-        primPistaVazia[pos]++;
-    }
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < 10; j++)
+            pthread_mutex_destroy(&(pista[i][j]));
 }
 
 void atualizarPista(){
