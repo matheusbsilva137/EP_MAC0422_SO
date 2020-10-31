@@ -8,7 +8,7 @@
 pthread_mutex_t** pista;
 int d, n, quantCiclistasAtivos;
 int* primPistaVazia;
-pthread_barrier_t *barreira;
+pthread_barrier_t barreira;
 
 typedef struct ciclista{
     int volta;
@@ -24,9 +24,9 @@ typedef struct ciclista{
 ciclista** ciclistas; 
 
 void* Thread(void* barrier){
-    printf("Chegou na barreira");
-    pthread_barrier_wait(barreira);
-    printf("Passou da barreira!");
+    printf("Chegou na barreira\n");
+    pthread_barrier_wait(&(barreira));
+    printf("Passou da barreira!\n");
 }
 
 ciclista* criarCiclista(){
@@ -53,7 +53,7 @@ ciclista* criarCiclista(){
             c->posCic = posCiclista;
             achouPosicao = 1;
 
-            pthread_create(&(c->tid), NULL, Thread, (void*) barreira);
+            pthread_create(&(c->tid), NULL, Thread, (void*) &(barreira));
             printf("Thread criada!\n");
         }
     }
@@ -78,10 +78,12 @@ void sortearVelocidade(ciclista* c){
 }
 
 void iniciarPista(int d, int n){
-    pthread_barrier_init(barreira, NULL, quantCiclistasAtivos);
+    
     srand(time(NULL));
 
     quantCiclistasAtivos = n;
+    pthread_barrier_init(&(barreira), NULL, quantCiclistasAtivos);
+
     primPistaVazia = malloc(d*sizeof(int));
     memset(primPistaVazia, 0, d*sizeof(int));
 
