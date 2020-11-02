@@ -4,11 +4,12 @@
 #include <string.h>
 #include <math.h>
 #include <unistd.h>
+#include "colocacao.h"
 #define _USE_XOPEN2K
 
 int d, n, quantCiclistasAtivos, intervaloSimulacao = 60;
 int* primPistaVazia;
-pthread_barrier_t barreiraInstante, barreiraSorteio, barreiraVelocidade, barreiraPosicao;
+pthread_barrier_t barreiraInstante, barreiraSorteio;
 
 typedef struct ciclista{
     int volta;
@@ -18,6 +19,7 @@ typedef struct ciclista{
     int pistaCic;
     int ativo;
     double posCic;
+    int id;
     
     pthread_t tid;
 } ciclista;
@@ -44,8 +46,8 @@ double calcularNovaPosicao(ciclista* c){
 
 /*
 Verifica se o ciclista c consegue ultrapassar o cilista que está a sua frente.
-A função retorna 0 se c não consegue fazer a ultrapassagem, ou a posição 
-mais interna em que c deve ficar após a ultrapassagem.
+A função retorna 0 se c não consegue fazer a ultrapassagem, ou o número da pista
+mais interna em que c deve ficar após a ultrapassagem, caso consiga ultrapassar.
 */
 int consegueUltrapassar(ciclista* c){
     int i = c->pistaCic, achei = 0;
@@ -91,13 +93,20 @@ void atualizarPosicao(ciclista* c){
             pthread_mutex_unlock(&(pista[posAntiga][c->pistaCic].semaforo));            
         }else{
             //tentativa de ultrapassagem
-            int posUltrapassagem = consegueUltrapassar(c);
-            if (posUltrapassagem != 0){
-                //trocar informações
-                
+            int pistaUltrapassagem = consegueUltrapassar(c);
+            if (pistaUltrapassagem != 0){
+                pista[(int)(c->posCic)][c->pistaCic].c = NULL;
+                if ((c->posCic + 1) >= d) c->volta += 1;
+
+                int posAntiga = (int) c->posCic;
+                c->posCic = ((int)c->posCic + 1)%d;
+                c->instante += 1;
+
+                pthread_mutex_unlock(&(pista[posAntiga][c->pistaCic].semaforo)); 
+                c->pistaCic = pistaUltrapassagem;
+                pista[(int)(c->posCic)][c->pistaCic].c = c;
             }else{
-                int minVel = c->velocidade;
-                int i;
+                int minVel = c->velocidade, i;
                 for (i = ((int)(c->posCic+1))%d; minVel >= pista[i][c->pistaCic].c->velocidade && i%d != c->posCic && pista[i][c->pistaCic].c != NULL; i = (i+1)%d)
                     minVel = (minVel < pista[i][c->pistaCic].c->velocidade ? (minVel) : (pista[i][c->pistaCic].c->velocidade));
 
@@ -106,13 +115,15 @@ void atualizarPosicao(ciclista* c){
                     pista[i][c->pistaCic].c->velocidade = minVel;
                 }
 
-                //arrumar
-                c->posCic = calcularNovaPosicao(c);
+                double novaPos = calcularNovaPosicao(c);
+    
+                if (abs((int)(floor(novaPos) - floor(c->posCic))) > 0) c->instante += 1;
+                else{
+                    c->instante += 1;
+                    c->posCic = novaPos;
+                }                
             }
         }
-
-        
-        pthread_barrier_wait(&barreiraVelocidade);
     }else{
         c->instante += 1;
         c->posCic = novaPos;
@@ -124,7 +135,7 @@ void atualizarPosicao(ciclista* c){
  considerando que este não está em alguma das duas últimas voltas.
 */
 void atualizarVelocidade(ciclista* c){
-    if (c->volta == 0 || c->velocidade == 90) return;
+    if (c->volta == 1 || c->velocidade == 90) return;
 
     int r = rand()%100;
     if (c->velocidade == 30){
@@ -142,16 +153,14 @@ void* Thread(void* c){
 
     while (cic->ativo){
         pthread_barrier_wait(&barreiraInstante);
-        if (cic->volta > 0) atualizarVelocidade(cic);
-
+        if (cic->volta > 1) atualizarVelocidade(cic);
         atualizarPosicao(cic);
-        pthread_barrier_wait(&barreiraPosicao);
     }
 }
 
 void criarCiclista(){
     ciclista* c = malloc(sizeof(ciclista));
-    c->volta = 0;
+    c->volta = 1;
     c->sprint = 0;
     c->velocidade = 30;
     c->instante = 0;
@@ -188,8 +197,6 @@ void iniciarPista(int d, int n){
     quantCiclistasAtivos = n;
     pthread_barrier_init(&(barreiraInstante), NULL, quantCiclistasAtivos);
     pthread_barrier_init(&(barreiraSorteio), NULL, quantCiclistasAtivos);
-    pthread_barrier_init(&(barreiraVelocidade), NULL, quantCiclistasAtivos);
-    pthread_barrier_init(&(barreiraPosicao), NULL, quantCiclistasAtivos);
 
     primPistaVazia = malloc(d*sizeof(int));
     memset(primPistaVazia, 0, d*sizeof(int));
@@ -213,5 +220,7 @@ void iniciarPista(int d, int n){
 }
 
 void atualizarPista(){
-    
+    for (int t = 0; quantCiclistasAtivos > 1; t += 60){
+
+    }
 }

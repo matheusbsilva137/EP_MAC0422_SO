@@ -11,8 +11,6 @@ int main(int argc, char* argv[]){
     printf("%lf\n", floor(1.0/3.0 + 1.0/3.0 +1.0/3.0));
     iniciarPista(d, n);
 
-    // for (t = 0; quantCiclistasAtivos > 1; t += intervalo){
-    //     atualizarPista();
-    // }
+    atualizarPista();
     return 0;
 }
