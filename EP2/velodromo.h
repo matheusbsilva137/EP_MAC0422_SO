@@ -7,7 +7,8 @@
 #include "colocacao.h"
 #define _USE_XOPEN2K
 
-int d, n, quantCiclistasAtivos, intervaloSimulacao = 60;
+int d, n, intervaloSimulacao = 60, idAnterior = 0;
+_Atomic int quantCiclistasAtivos;
 int* primPistaVazia;
 pthread_barrier_t barreiraInstante, barreiraSorteio;
 
@@ -84,24 +85,44 @@ void atualizarPosicao(ciclista* c){
             if (novaPos >= d){
                 novaPos -= d;
                 c->volta += 1;
+                int eliminado = classificarCiclista(c->id, c->volta);
+                if (eliminado){
+                    c->ativo = 0;
+                    quantCiclistasAtivos--;
+                    pista[c->posCic][c->pistaCic].c = NULL;
+                    pthread_mutex_unlock(&(pista[c->posCic][c->pistaCic].semaforo));
+                    return;
+                }
             }
 
             int posAntiga = (int) c->posCic;
             c->posCic = novaPos;
             c->instante += 1;
             pista[(int)(c->posCic)][c->pistaCic].c = c;
-            pthread_mutex_unlock(&(pista[posAntiga][c->pistaCic].semaforo));            
+            pthread_mutex_unlock(&(pista[posAntiga][c->pistaCic].semaforo));
+            pista[posAntiga][c->pistaCic].c = NULL;
         }else{
             //tentativa de ultrapassagem
             int pistaUltrapassagem = consegueUltrapassar(c);
             if (pistaUltrapassagem != 0){
                 pista[(int)(c->posCic)][c->pistaCic].c = NULL;
-                if ((c->posCic + 1) >= d) c->volta += 1;
+                if ((c->posCic + 1) >= d){
+                    c->volta += 1;
+                    int eliminado = classificarCiclista(c->id, c->volta);
+                    if (eleiminado){
+                        c->ativo = 0;
+                        quantCiclistasAtivos--;
+                        pista[c->posCic][c->pistaCic].c = NULL;
+                        pthread_mutex_unlock(&(pista[c->posCic][c->pistaCic].semaforo));
+                        return;
+                    }
+                }
 
                 int posAntiga = (int) c->posCic;
                 c->posCic = ((int)c->posCic + 1)%d;
                 c->instante += 1;
 
+                pista[posAntiga][c->pistaCic].c = NULL;
                 pthread_mutex_unlock(&(pista[posAntiga][c->pistaCic].semaforo)); 
                 c->pistaCic = pistaUltrapassagem;
                 pista[(int)(c->posCic)][c->pistaCic].c = c;
@@ -153,8 +174,18 @@ void* Thread(void* c){
 
     while (cic->ativo){
         pthread_barrier_wait(&barreiraInstante);
-        if (cic->volta > 1) atualizarVelocidade(cic);
-        atualizarPosicao(cic);
+        if (cic->volta % 6 == 0 && quantCiclistasAtivos > 5 && rand()%100 <= 4){
+            quantCiclistasAtivos--;
+            cic->ativo = 0;
+            ajustarCiclistaQuebrado(cic->id, cic->volta);
+            pista[cic->posCic][cic->pistaCic].c = NULL;
+            pthread_mutex_unlock(&(pista[cic->posCic][cic->pistaCic]));
+            printf("Ciclista %d quebrou na volta %d\n", cic->id, cic->volta);
+            free(cic);
+        }else{
+            if (cic->volta > 1) atualizarVelocidade(cic);
+            atualizarPosicao(cic);
+        }
     }
 }
 
@@ -165,6 +196,7 @@ void criarCiclista(){
     c->velocidade = 30;
     c->instante = 0;
     c->ativo = 1;
+    c->id = ++idAnterior;
 
     int achouPosicao = 0, posCiclista, pistaCiclista, max = ((int) ceil(((double)n)/5.0));
     while (!achouPosicao){
@@ -193,6 +225,7 @@ void criarCiclista(){
 void iniciarPista(int d, int n){
     
     srand(time(NULL));
+    criarColocacoes(n, d);
 
     quantCiclistasAtivos = n;
     pthread_barrier_init(&(barreiraInstante), NULL, quantCiclistasAtivos);
@@ -223,4 +256,7 @@ void atualizarPista(){
     for (int t = 0; quantCiclistasAtivos > 1; t += 60){
 
     }
+
+    imprimirColocacoes();
+    finalizarColocacoes();
 }
