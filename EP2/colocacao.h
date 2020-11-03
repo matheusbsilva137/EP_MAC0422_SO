@@ -14,6 +14,32 @@ _Atomic int aFinal;
 _Atomic int bFinal;
 _Atomic int *filaEliminados;
 
+/*
+Recebe o número de uma volta e imprime suas colocações correspondente.
+*/
+void imprimirColocacoes(int volta){
+    pthread_mutex_lock(&(semaforos[volta-1]));
+    printf(" |------ VOLTA %03d -----|\n", volta);
+    printf(" |  COLOCAÇÃO  | CICLISTA |\n");
+    for(int i = 0; i < a[volta-1]; i++){
+        printf(" |     %03d     |    %03d   |\n", i+1, colocacoesCorrida[volta-1][i]);
+    }
+    pthread_mutex_unlock(&(semaforos[volta-1]));
+}
+
+void imprimirColocacoesFinais(){
+    pthread_mutex_lock(&semFinal);
+    printf(" |------ CLASSIFICAÇÃO FINAL ------|\n");
+    printf(" |    COLOCAÇÃO    |   CICLISTA    |\n");
+    for(int i = aFinal - 1; i >= 0; i--){
+        printf(" |       %03d       |      %03d      |\n", i+1, colocacoesFinais[i]);
+    }
+    for(int i = n-1; i > bFinal; i--){
+        printf(" |    ELIMINADO    |      %03d      |\n", colocacoesFinais[i]);
+    }
+    pthread_mutex_unlock(&semFinal);
+}
+
 void criarColocacoes(int nCorrida, int dCorrida){
     colocacoesCorrida = (int**) malloc(2*(n-1)*sizeof(int*));
     for (int i = 0; i < 2*(n-1); i++) colocacoesCorrida[i] = NULL;
@@ -76,9 +102,11 @@ int classificarCiclista(int id, int volta){
         aFinal++;
         pthread_mutex_unlock(&semFinal);
         imprimirColocacoes(volta);
+        pthread_mutex_unlock(&(semaforos[volta-1]));
         return 1;
     }
     pthread_mutex_unlock(&(semaforos[volta-1]));
+    return 0;
 }
 
 void ajustarCiclistaQuebrado(int id, int volta){
@@ -115,30 +143,4 @@ int verificarEliminacao(int id){
         if (filaEliminados[i] == id) return 1;
     }
     return 0;
-}
-
-/*
-Recebe o número de uma volta e imprime suas colocações correspondente.
-*/
-void imprimirColocacoes(int volta){
-    pthread_mutex_lock(&(semaforos[volta-1]));
-    printf(" |------ VOLTA %03d -----|\n", volta);
-    printf(" |  COLOCAÇÃO  | CICLISTA |\n", volta);
-    for(int i = 0; i < a[volta-1]; i++){
-        printf(" |     %03d     |    %03d   |\n", i+1, colocacoesCorrida[volta-1][i]);
-    }
-    pthread_mutex_unlock(&(semaforos[volta-1]));
-}
-
-void imprimirColocacoesFinais(){
-    pthread_mutex_lock(&semFinal);
-    printf(" |------ CLASSIFICAÇÃO FINAL ------|\n");
-    printf(" |    COLOCAÇÃO    |   CICLISTA    |\n");
-    for(int i = 0; i < aFinal; i++){
-        printf(" |       %03d       |      %03d      |\n", i+1, colocacoesCorrida[volta-1][i]);
-    }
-    for(int i = n-1; i > bFinal; i--){
-        printf(" |    ELIMINADO    |      %03d      |\n", colocacoesFinais[i]);
-    }
-    pthread_mutex_unlock(&semFinal);
 }
