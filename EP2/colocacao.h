@@ -171,5 +171,6 @@ void guardarVencedor(int id){
 }
 
 void subidaAoPodio(){
+    
     colocacoesFinais[aFinal++] = idVencedor;
 }
