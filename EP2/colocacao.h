@@ -5,7 +5,7 @@
 
 int* colocacoesFinais;
 int** colocacoesCorrida;
-int n, d, fimFila = 0;
+int n, d, fimFila = 0, idVencedor;
 pthread_mutex_t* semaforos;
 pthread_mutex_t semFinal;
 _Atomic int *a;
@@ -29,6 +29,9 @@ void imprimirColocacoes(int volta){
 
 void imprimirColocacoesFinais(){
     pthread_mutex_lock(&semFinal);
+    for(int i = 0; i < n; i++){
+        printf(" |       %03d       |      %03d      |\n", n-i, colocacoesFinais[i]);
+    }
     printf(" |------ CLASSIFICAÇÃO FINAL ------|\n");
     printf(" |    COLOCAÇÃO    |   CICLISTA    |\n");
     for(int i = aFinal - 1; i >= 0; i--){
@@ -100,8 +103,8 @@ int classificarCiclista(int id, int volta){
     //printf("colocando id %d e %d e %d\n", volta-1, a[volta-1], n-((volta)%2-(n-b[volta-2]-1)));
     colocacoesCorrida[volta-1][a[volta-1]] = id;
     a[volta - 1] += 1;
-    printf("BBB- %d e B2- %d\n", b[volta-2] + 1 - (volta)%2 - 1, b[volta-2]);
-    printf("A- %d e B- %d e volta- %d\n", a[volta-1], b[volta-1], volta);
+    //printf("BBB- %d e B2- %d\n", b[volta-2] + 1 - (volta)%2 - 1, b[volta-2]);
+    //printf("A- %d e B- %d e volta- %d\n", a[volta-1], b[volta-1], volta);
     if (volta %2 != 0){
         if (a[volta-1] > b[volta-1]){
             pthread_mutex_unlock(&(semaforos[volta-1]));
@@ -112,6 +115,7 @@ int classificarCiclista(int id, int volta){
     else if (a[volta-1] > b[volta-1]){
         printf("eliminado!!!\n");
         pthread_mutex_lock(&semFinal);
+        printf("ID ELIMINADO : %d\n", id);
         colocacoesFinais[aFinal] = id;
         aFinal++;
         pthread_mutex_unlock(&semFinal);
@@ -157,4 +161,15 @@ int verificarEliminacao(int id){
         if (filaEliminados[i] == id) return 1;
     }
     return 0;
+}
+
+/*
+
+*/
+void guardarVencedor(int id){
+    idVencedor = id;
+}
+
+void subidaAoPodio(){
+    colocacoesFinais[aFinal++] = idVencedor;
 }
