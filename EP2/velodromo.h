@@ -13,7 +13,6 @@ int* primPistaVazia;
 pthread_mutex_t semaforoInstante, semaforoSincro, semaforoVelocidade90;
 pthread_barrier_t barreiraInstante, barreiraSorteio, barreiraSemaforo;
 
-
 typedef struct ciclista{
     int volta;
     int sprint;
@@ -252,11 +251,6 @@ void* Thread(void* c){
     free(cic);
     return NULL;
 }
-
-
-
-                    
-
 
 void criarCiclista(){
     ciclista* c = malloc(sizeof(ciclista));
