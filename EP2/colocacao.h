@@ -13,6 +13,7 @@ _Atomic int *b;
 _Atomic int aFinal;
 _Atomic int bFinal;
 _Atomic int *filaEliminados;
+_Atomic int velocidade90 = 0;
 
 /*
 Recebe o número de uma volta e imprime suas colocações correspondente.
@@ -100,11 +101,8 @@ int classificarCiclista(int id, int volta){
             b[volta - 1] = b[volta-2]+1 -((volta)%2) - 1;
         }
     }
-    //printf("colocando id %d e %d e %d\n", volta-1, a[volta-1], n-((volta)%2-(n-b[volta-2]-1)));
     colocacoesCorrida[volta-1][a[volta-1]] = id;
     a[volta - 1] += 1;
-    //printf("BBB- %d e B2- %d\n", b[volta-2] + 1 - (volta)%2 - 1, b[volta-2]);
-    //printf("A- %d e B- %d e volta- %d\n", a[volta-1], b[volta-1], volta);
     if (volta %2 != 0){
         if (a[volta-1] > b[volta-1]){
             pthread_mutex_unlock(&(semaforos[volta-1]));
@@ -113,16 +111,19 @@ int classificarCiclista(int id, int volta){
         return 0;
     } 
     else if (a[volta-1] > b[volta-1]){
-        printf("eliminado!!!\n");
         pthread_mutex_lock(&semFinal);
-        printf("ID ELIMINADO : %d\n", id);
         colocacoesFinais[aFinal] = id;
         aFinal++;
+        srand(time(NULL));
+        if((bFinal - aFinal) == 1 && (rand()%100) <= 90){
+            velocidade90 = 1;
+        } 
         pthread_mutex_unlock(&semFinal);
         pthread_mutex_unlock(&(semaforos[volta-1]));
         imprimirColocacoes(volta);
         return 1;
     }
+    
     pthread_mutex_unlock(&(semaforos[volta-1]));
     return 0;
 }
