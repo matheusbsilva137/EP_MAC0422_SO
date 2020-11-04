@@ -8,9 +8,9 @@
 #define _USE_XOPEN2K
 
 int d, n, intervaloSimulacao = 60, idAnterior = 0, debug = 0;
-_Atomic int quantCiclistasAtivos, diminuirIntervalo = 0, contBarrier = 0, quantQuebrados = 0, velocidade90 = 0;
+_Atomic int quantCiclistasAtivos, diminuirIntervalo = 0, contBarrier = 0, quantQuebrados = 0;
 int* primPistaVazia;
-pthread_mutex_t semaforoInstante, semaforoSincro, semaforoVelocidade90;
+pthread_mutex_t semaforoInstante, semaforoSincro, semaforoVelocidade90, semaforoIntervalo;
 pthread_barrier_t barreiraInstante, barreiraSorteio, barreiraSemaforo;
 
 
@@ -33,6 +33,11 @@ typedef struct posicaoCircuito{
 
 } posicaoCircuito;
 posicaoCircuito** pista;
+
+int proxPos(ciclista *c){
+    return ((int)((int)c->posCic+1)%d);
+}
+
 
 double calcularNovaPosicao(ciclista* c){
     if (intervaloSimulacao == 60){
@@ -61,16 +66,15 @@ int consegueUltrapassar(ciclista* c){
             pthread_mutex_unlock(&(pista[(int)c->posCic][i].semaforo));
         }else iLoop = i;
     }
-    
-    if(achei == 1) printf("ehummmm\n");
+
     if (!achei) return 0;
     
     achei = 0;
     iLoop = c->pistaCic;
     
     while (!achei && i < 10){
-        for (i = iLoop+1; i < 10 && pista[((int)c->posCic+1)%d][i].c != NULL; i++);
-        if (i < 10 && pthread_mutex_trylock(&(pista[((int)c->posCic+1)%d][i].semaforo)) == 0)
+        for (i = iLoop+1; i < 10 && pista[proxPos(c)][i].c != NULL; i++);
+        if (i < 10 && pthread_mutex_trylock(&(pista[proxPos(c)][i].semaforo)) == 0)
             achei = 1;
         else iLoop = i;
     }
@@ -80,16 +84,17 @@ int consegueUltrapassar(ciclista* c){
     else return i;
 }
 
+
+
 void atualizarPosicao(ciclista* c){
     double novaPos = calcularNovaPosicao(c);
     
     if (abs((int)(floor(novaPos) - floor(c->posCic))) > 0){
-        while (pista[((int)(c->posCic + 1))%d][c->pistaCic].c != NULL && pista[((int)(c->posCic + 1))%d][c->pistaCic].c->instante == c->instante)
+        while (pista[proxPos(c)][c->pistaCic].c != NULL && pista[proxPos(c)][c->pistaCic].c->instante == c->instante)
             usleep(100);
 
-        //if(pista[((int)(c->posCic + 1))%d][c->pistaCic].c == NULL) printf("OBAAAA\n");
-        if (pista[((int)(c->posCic + 1))%d][c->pistaCic].c == NULL 
-            && pthread_mutex_trylock(&(pista[((int)(c->posCic + 1))%d][c->pistaCic].semaforo)) == 0){
+        if (pista[proxPos(c)][c->pistaCic].c == NULL 
+            && pthread_mutex_trylock(&(pista[proxPos(c)][c->pistaCic].semaforo)) == 0){
             
             pista[(int)(c->posCic)][c->pistaCic].c = NULL;
             
@@ -99,18 +104,13 @@ void atualizarPosicao(ciclista* c){
                 int eliminado = classificarCiclista(c->id, c->volta);
                 c->volta += 1;
                 if (eliminado || (((c->volta) - 1)%2 == 0 && verificarEliminacao(c->id)) || c->volta > 2*(n-1) - 2*(quantQuebrados)){
-                    if(eliminado){
-                        /*COLOCAR CICLISTA NA FILA DE ELIMINADOS*/
-                        c->ativo = 0;
-                    } 
+                    if(eliminado) c->ativo = 0; 
                     quantCiclistasAtivos--;
-                    int r = rand()%100;
-                    if(quantCiclistasAtivos == 2 && r <= 90) velocidade90 = 1;
+                    pthread_mutex_unlock(&(pista[proxPos(c)][c->pistaCic].semaforo));
                     pthread_mutex_unlock(&(pista[(int)(c->posCic)][c->pistaCic].semaforo));
                     return;
                 }
             }
-            //printf("passei %d %d %d\n", c->instante, c->volta, c->id);
             int posAntiga = (int) c->posCic;
             c->posCic = novaPos;
             c->instante += 1;
@@ -118,9 +118,7 @@ void atualizarPosicao(ciclista* c){
             pthread_mutex_unlock(&(pista[posAntiga][c->pistaCic].semaforo));
         }else{
             //tentativa de ultrapassagem
-            printf("ID TRAVADO: %d\n", c->id);
             int pistaUltrapassagem = consegueUltrapassar(c);
-            printf("CONSEGUIU ULT: %d\n", pistaUltrapassagem);
             if (pistaUltrapassagem != 0){
                 pista[(int)(c->posCic)][c->pistaCic].c = NULL;
                 if (novaPos >= d){
@@ -130,11 +128,8 @@ void atualizarPosicao(ciclista* c){
                     if (eliminado || c->volta > 2*(n-1) - 2*(quantQuebrados) || (((c->volta) - 1)%2 == 0 && verificarEliminacao(c->id))){
                         if(eliminado) c->ativo = 0;
                         quantCiclistasAtivos--;
-                        int r = rand()%100;
-                        if(quantCiclistasAtivos == 2 && r <= 90) velocidade90 = 1;
-                        pista[(int)(c->posCic)][c->pistaCic].c = NULL;
+                        pthread_mutex_unlock(&(pista[proxPos(c)][pistaUltrapassagem].semaforo));
                         pthread_mutex_unlock(&(pista[(int)(c->posCic)][c->pistaCic].semaforo));
-                        c->posCic = novaPos;
                         return;
                     }
                 }
@@ -142,19 +137,17 @@ void atualizarPosicao(ciclista* c){
                 int posAntiga = (int) c->posCic;
                 c->posCic = novaPos;
                 c->instante += 1;
-
-                pista[posAntiga][c->pistaCic].c = NULL;
                 pthread_mutex_unlock(&(pista[posAntiga][c->pistaCic].semaforo)); 
                 c->pistaCic = pistaUltrapassagem;
                 pista[(int)(c->posCic)][c->pistaCic].c = c;
             }else{
                 
                 int minVel = c->velocidade, i;
-                for (i = ((int)(c->posCic+1))%d; pista[i][c->pistaCic].c != NULL && minVel >= pista[i][c->pistaCic].c->velocidade && i%d != c->posCic; i = (i+1)%d)
+                for (i = proxPos(c); pista[i][c->pistaCic].c != NULL && minVel >= pista[i][c->pistaCic].c->velocidade && i%d != c->posCic; i = (i+1)%d)
                     minVel = (minVel < pista[i][c->pistaCic].c->velocidade ? (minVel) : (pista[i][c->pistaCic].c->velocidade));
                 
                 
-                for (int j = ((int)(c->posCic+1))%d; j != i; j = (j+1)%d)
+                for (int j = proxPos(c); j != i; j = (j+1)%d)
                     pista[j][c->pistaCic].c->velocidade = minVel;
                 
                  
@@ -164,8 +157,7 @@ void atualizarPosicao(ciclista* c){
                 else{
                     c->instante += 1;
                     c->posCic = novaPos;
-                }     
-                //printf("jooj\n");      
+                }      
             }
         }
     }else{
@@ -200,26 +192,20 @@ void* Thread(void* c){
     ciclista* cic = (ciclista*) c;
 
     while (cic->ativo && cic->volta <= (2*(n-1)) - 2*(quantQuebrados)){
-        //printf("antes\n");
-        printf("POSICAO: %lf\n", cic->posCic);
         pthread_barrier_wait(&barreiraInstante);
         
-        //printf("depois\n");
         pthread_mutex_lock(&semaforoInstante);
         pthread_mutex_unlock(&semaforoInstante);
 
         pthread_barrier_wait(&barreiraInstante);
         
-        if (cic->volta % 6 == 0 && quantCiclistasAtivos > 5 && rand()%100 <= 4){
+        if (cic->volta % 6 == 0 && quantCiclistasAtivos > 5 && rand()%100 <= 60){
             quantCiclistasAtivos--;
-            int r = rand()%100;
-            if(quantCiclistasAtivos == 2 && r <= 90) velocidade90 = 1;
             cic->ativo = 0;
             quantQuebrados++;
             ajustarCiclistaQuebrado(cic->id, cic->volta);
             pista[(int)(cic->posCic)][cic->pistaCic].c = NULL;
             pthread_mutex_unlock(&(pista[(int)(cic->posCic)][cic->pistaCic].semaforo));
-            //printf("Ciclista %d quebrou na volta %d\n", cic->id, cic->volta);
             pthread_barrier_wait(&barreiraSorteio);
         }else{
             pthread_mutex_lock(&semaforoVelocidade90);
@@ -231,22 +217,15 @@ void* Thread(void* c){
             pthread_mutex_unlock(&semaforoVelocidade90);
             if (cic->volta > 1) atualizarVelocidade(cic);
             else pthread_barrier_wait(&barreiraSorteio);
-            //printf("Vai entrar na atualização de posição!\n");
-            //printf("jooj\n");  
-            atualizarPosicao(cic);
-            //printf("jooj1\n");  
+            pthread_mutex_lock(&semaforoIntervalo);
+            pthread_mutex_unlock(&semaforoIntervalo);
+            atualizarPosicao(cic); 
         }
-        //printf("antes %d %d %d\n", cic->id, cic->instante, cic->volta); 
         pthread_barrier_wait(&barreiraSemaforo);
-        //printf("depois\n");
         pthread_mutex_lock(&semaforoSincro);
         pthread_mutex_unlock(&semaforoSincro);
     }
-    //if(cic->volta > (2*(n-1)) - 2*(quantQuebrados) && !cic->ativo) printf("o krl %d\n", cic->id);
-    // if(!cic->ativo) printf("INATIVO %d\n", cic->id);
-    // if(cic->volta <= (2*(n-1)) - 2*(quantQuebrados)) printf("NÃO ACABOU A CORRIDA %d\n", cic->id);
     if(cic->volta > (2*(n-1)) - 2*(quantQuebrados) && cic->ativo){
-        //printf("ID HAMILTON: %d\n", cic->id);
         guardarVencedor(cic->id);
     }
     free(cic);
@@ -301,7 +280,7 @@ void iniciarPista(int d, int n){
     pthread_mutex_init(&semaforoInstante, NULL);
     pthread_mutex_init(&semaforoSincro, NULL);
     pthread_mutex_init(&semaforoVelocidade90, NULL);
-    
+    pthread_mutex_init(&semaforoIntervalo, NULL);
 
     primPistaVazia = malloc(d*sizeof(int));
     memset(primPistaVazia, 0, d*sizeof(int));
@@ -323,12 +302,11 @@ void iniciarPista(int d, int n){
 void atualizarPista(){
     
     for (int t = 0; quantCiclistasAtivos >= 1; t += intervaloSimulacao){
-        //printf("Ativos: %d\n", quantCiclistasAtivos);
         pthread_mutex_lock(&semaforoInstante);
 
+        
         pthread_barrier_wait(&barreiraInstante);
 
-        if (diminuirIntervalo == 1) intervaloSimulacao = 20;
 
         if(debug){
             printf("IMPRESSAO DA PISTA NO INSTANTE %dms\n", t);
@@ -339,14 +317,21 @@ void atualizarPista(){
                 printf("Metro %02d: ", i);
                 for(int j = 0; j < 10; j++){
                     if(pista[i][j].c != NULL) printf("%03d ", pista[i][j].c->id);
-                    else printf(" E  ");
+                    else{
+                        if(pthread_mutex_trylock(&(pista[i][j].semaforo)) != 0){
+                            printf(" E* ");
+                        }
+                        else{
+                            pthread_mutex_unlock(&(pista[i][j].semaforo));
+                            printf(" E  ");
+                        } 
+                        //pthread_mutex_unlock(&(pista[i][j].semaforo));
+                    } 
                 }
                 printf("\n");
             }
             printf("\n\n");
         }
-        //printf("obaaa\n");
-        
         pthread_barrier_init(&(barreiraSorteio), NULL, quantCiclistasAtivos+1);
 
         
@@ -358,16 +343,23 @@ void atualizarPista(){
         
 
         pthread_mutex_lock(&semaforoSincro);
+        pthread_mutex_lock(&semaforoIntervalo);
+
+        
 
         pthread_barrier_wait(&barreiraSorteio);
+        if (diminuirIntervalo == 1) intervaloSimulacao = 20;
+        
+        pthread_mutex_unlock(&semaforoIntervalo);
 
         pthread_barrier_destroy(&barreiraSorteio);
 
-        //printf("cheguei na barreira semaforo\n");
+
         pthread_barrier_wait(&barreiraSemaforo);
+
         pthread_barrier_destroy(&barreiraSemaforo);
 
-        //printf("Quant: %d\n", quantCiclistasAtivos+1);
+
         pthread_barrier_init(&barreiraSemaforo, NULL, quantCiclistasAtivos+1);
         pthread_barrier_init(&(barreiraInstante), NULL, quantCiclistasAtivos+1);
         pthread_mutex_unlock(&semaforoSincro);
