@@ -5,14 +5,15 @@
 
 int* colocacoesFinais;
 int** colocacoesCorrida;
-int n, d, fimFila = 0, idVencedor;
+int n, d, idVencedor;
 pthread_mutex_t* semaforos;
 pthread_mutex_t semFinal;
 _Atomic int *a;
 _Atomic int *b;
 _Atomic int aFinal;
 _Atomic int bFinal;
-_Atomic int *filaEliminados;
+_Atomic int fimFila;
+_Atomic int *filaEliminados, *filaEliminadosVoltas;
 _Atomic int velocidade90 = 0;
 
 /*
@@ -20,26 +21,27 @@ Recebe o número de uma volta e imprime suas colocações correspondente.
 */
 void imprimirColocacoes(int volta){
     pthread_mutex_lock(&(semaforos[volta-1]));
-    printf(" |------- VOLTA %03d ------|\n", volta);
-    printf(" |  COLOCAÇÃO  | CICLISTA |\n");
+    fprintf(stderr, " |------- VOLTA %03d ------|\n", volta);
+    fprintf(stderr, " |  COLOCAÇÃO  | CICLISTA |\n");
     for(int i = 0; i < a[volta-1]; i++){
-        printf(" |     %03d     |    %03d   |\n", i+1, colocacoesCorrida[volta-1][i]);
+        fprintf(stderr, " |     %03d     |    %03d   |\n", i+1, colocacoesCorrida[volta-1][i]);
     }
+    fprintf(stderr, "\n");
     pthread_mutex_unlock(&(semaforos[volta-1]));
 }
 
 void imprimirColocacoesFinais(){
     pthread_mutex_lock(&semFinal);
     for(int i = 0; i < n; i++){
-        printf(" |       %03d       |      %03d      |\n", n-i, colocacoesFinais[i]);
+        fprintf(stderr, " |       %03d       |      %03d      |\n", n-i, colocacoesFinais[i]);
     }
-    printf(" |------ CLASSIFICAÇÃO FINAL ------|\n");
-    printf(" |    COLOCAÇÃO    |   CICLISTA    |\n");
+    fprintf(stderr, " |------ CLASSIFICAÇÃO FINAL ------|\n");
+    fprintf(stderr, " |    COLOCAÇÃO    |   CICLISTA    |\n");
     for(int i = aFinal - 1; i >= 0; i--){
-        printf(" |       %03d       |      %03d      |\n", aFinal-i, colocacoesFinais[i]);
+        fprintf(stderr, " |       %03d       |      %03d      |\n", aFinal-i, colocacoesFinais[i]);
     }
     for(int i = n-1; i > bFinal; i--){
-        printf(" |    ELIMINADO    |      %03d      |\n", colocacoesFinais[i]);
+        fprintf(stderr, " |    ELIMINADO    |      %03d      |\n", colocacoesFinais[i]);
     }
     pthread_mutex_unlock(&semFinal);
 }
@@ -52,6 +54,7 @@ void criarColocacoes(int nCorrida, int dCorrida){
 
     colocacoesFinais = (int*) malloc(n*sizeof(_Atomic int));
     filaEliminados = (_Atomic int*) malloc(n*sizeof(_Atomic int));
+    filaEliminadosVoltas = (_Atomic int*) malloc(n*sizeof(_Atomic int));
     a = (_Atomic int*) malloc(2*(n-1)*sizeof(_Atomic int));
     b = (_Atomic int*) malloc(2*(n-1)*sizeof(_Atomic int));
 
@@ -68,8 +71,10 @@ void criarColocacoes(int nCorrida, int dCorrida){
         pthread_mutex_init(&(semaforos[i]), NULL);
     pthread_mutex_init(&(semFinal), NULL);
 
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < n; i++){
         filaEliminados[i] = 0;
+        filaEliminadosVoltas[i] = 0;
+    }
 }
 
 void finalizarColocacoes(){
@@ -83,6 +88,7 @@ void finalizarColocacoes(){
     free(a);
     free(b);
     free(filaEliminados);
+    free(filaEliminadosVoltas);
 }
 
 /*
@@ -92,15 +98,16 @@ retorna 1 caso o ciclista tenha sido eliminado (ou 0, cc)
 */
 int classificarCiclista(int id, int volta){
     pthread_mutex_lock(&(semaforos[volta-1]));
-    
 
     if (colocacoesCorrida[volta-1] == NULL){
         if (volta == 1) colocacoesCorrida[volta-1] = (int*) malloc(n*sizeof(int));
         else{
             colocacoesCorrida[volta-1] = (int*) malloc((b[volta-2]+1 -((volta)%2))*sizeof(int));
             b[volta - 1] = b[volta-2]+1 -((volta)%2) - 1;
+            fprintf(stderr, "NA volta %d, tenho %d caras na pista!\n", volta, b[volta-1]+1);
         }
     }
+
     colocacoesCorrida[volta-1][a[volta-1]] = id;
     a[volta - 1] += 1;
     if (volta %2 != 0){
@@ -128,8 +135,12 @@ int classificarCiclista(int id, int volta){
     return 0;
 }
 
-void ajustarCiclistaQuebrado(int id, int volta){
-    int colocacaoVazia = 0;
+/*
+A funão retorna 1 se o ciclista quebrado completa sua volta,
+ou 0 caso contrário.
+*/
+int ajustarCiclistaQuebrado(int id, int volta){
+    int colocacaoVazia = 0, res = 0;
     for(int i = volta-1; i < 2*(n-1) && !colocacaoVazia; i++){
         pthread_mutex_lock(&(semaforos[i]));
 
@@ -139,8 +150,7 @@ void ajustarCiclistaQuebrado(int id, int volta){
             b[i] -= 1;
 
             if (a[i] > b[i]){
-                filaEliminados[fimFila++] = colocacoesCorrida[i][a[i]-1];
-                imprimirColocacoes(i+1);
+                res = 1;
             }
         }
 
@@ -151,6 +161,7 @@ void ajustarCiclistaQuebrado(int id, int volta){
 
         pthread_mutex_unlock(&(semaforos[i]));
     }
+    return res;
 }
 
 /*
@@ -158,8 +169,13 @@ Recebe o id de um ciclista e retorna 1 se este deve ser eliminado
 (ou 0, caso contrário).
 */
 int verificarEliminacao(int id){
-    for (int i = 0; i < fimFila && filaEliminados[i] != 0; i++){
-        if (filaEliminados[i] == id) return 1;
+    for (int i = 0; i < fimFila; i++){
+        fprintf(stderr, "Cara %d eliminado na fila!\n", filaEliminados[i]);
+        if (filaEliminados[i] == id){
+            
+            imprimirColocacoes(filaEliminadosVoltas[i]);
+            return 1;
+        }
     }
     return 0;
 }
