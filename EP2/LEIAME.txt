@@ -1,0 +1,11 @@
+Gustavo Santos Morais - 11221932
+Matheus Barbosa Silva - 11221741
+
+A compilação do programa é feita utilizando o comando make no terminal.
+Após a execução do comando, será gerado um arquivo binário que pode ser usado da seguinte forma:
+ * SIMULADOR DA CORRIDA: ./ep2 <quantidade-metros> <quantidade-ciclistas> <d>
+A quantidade de metros é um número menor que 249, que designa o comprimento da pista.
+A quantidade de ciclistas é um número entre 5 e 5*<quantidade-metros>.
+<d> é a opção de debug, que mostra a situação da pista a cada instante de tempo.
+
+O SIMULADOR DA CORRIDA está dividido em dois arquivos: um header "velodromo.h", que controla as threads e suas movimentações na pista, e um header "colocacoes.h", que monta as colocações da corrida (tanto final, quanto a cada volta), além de controlar o começo e final de cada volta.
