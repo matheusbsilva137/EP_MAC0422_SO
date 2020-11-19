@@ -383,4 +383,5 @@ void atualizarPista(){
         free(pista[i]);
     }
     free(pista);
+    free(primPistaVazia);
 }
