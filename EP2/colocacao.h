@@ -32,9 +32,7 @@ void imprimirColocacoes(int volta){
 
 void imprimirColocacoesFinais(){
     pthread_mutex_lock(&semFinal);
-    for(int i = 0; i < n; i++){
-        fprintf(stderr, " |       %03d       |      %03d      |\n", n-i, colocacoesFinais[i]);
-    }
+
     fprintf(stderr, " |------ CLASSIFICAÇÃO FINAL ------|\n");
     fprintf(stderr, " |    COLOCAÇÃO    |   CICLISTA    |\n");
     for(int i = aFinal - 1; i >= 0; i--){
@@ -104,7 +102,6 @@ int classificarCiclista(int id, int volta){
         else{
             colocacoesCorrida[volta-1] = (int*) malloc((b[volta-2]+1 -((volta)%2))*sizeof(int));
             b[volta - 1] = b[volta-2]+1 -((volta)%2) - 1;
-            fprintf(stderr, "NA volta %d, tenho %d caras na pista!\n", volta, b[volta-1]+1);
         }
     }
 
@@ -113,21 +110,21 @@ int classificarCiclista(int id, int volta){
     if (volta %2 != 0){
         if (a[volta-1] > b[volta-1]){
             pthread_mutex_unlock(&(semaforos[volta-1]));
-            imprimirColocacoes(volta);
+            //imprimirColocacoes(volta);
         } else pthread_mutex_unlock(&(semaforos[volta-1]));
         return 0;
-    } 
-    else if (a[volta-1] > b[volta-1]){
+    }else if (a[volta-1] > b[volta-1]){
         pthread_mutex_lock(&semFinal);
         colocacoesFinais[aFinal] = id;
         aFinal++;
+
         srand(time(NULL));
-        if((bFinal - aFinal) == 1 && (rand()%100) <= 90){
-            velocidade90 = 1;
-        } 
+        if((bFinal - aFinal) == 1 && (rand()%100) <= 10)
+            velocidade90 = 1; 
+
         pthread_mutex_unlock(&semFinal);
         pthread_mutex_unlock(&(semaforos[volta-1]));
-        imprimirColocacoes(volta);
+        //imprimirColocacoes(volta);
         return 1;
     }
     
@@ -141,6 +138,12 @@ ou 0 caso contrário.
 */
 int ajustarCiclistaQuebrado(int id, int volta){
     int colocacaoVazia = 0, res = 0;
+    
+    if (colocacoesCorrida[volta-1] == NULL){
+        colocacoesCorrida[volta-1] = (int*) malloc((b[volta-2]+1 -((volta)%2))*sizeof(int));
+        b[volta - 1] = b[volta-2]+1 -((volta)%2) - 1;
+    }
+
     for(int i = volta-1; i < 2*(n-1) && !colocacaoVazia; i++){
         pthread_mutex_lock(&(semaforos[i]));
 
@@ -152,12 +155,12 @@ int ajustarCiclistaQuebrado(int id, int volta){
             if (a[i] > b[i]){
                 res = 1;
             }
-        }
 
-        pthread_mutex_lock(&semFinal);
-        colocacoesFinais[bFinal] = id;
-        bFinal--;
-        pthread_mutex_unlock(&semFinal);
+            pthread_mutex_lock(&semFinal);
+            colocacoesFinais[bFinal] = id;
+            bFinal--;
+            pthread_mutex_unlock(&semFinal);
+        }
 
         pthread_mutex_unlock(&(semaforos[i]));
     }
@@ -170,10 +173,9 @@ Recebe o id de um ciclista e retorna 1 se este deve ser eliminado
 */
 int verificarEliminacao(int id){
     for (int i = 0; i < fimFila; i++){
-        fprintf(stderr, "Cara %d eliminado na fila!\n", filaEliminados[i]);
         if (filaEliminados[i] == id){
             
-            imprimirColocacoes(filaEliminadosVoltas[i]);
+            //imprimirColocacoes(filaEliminadosVoltas[i]);
             return 1;
         }
     }
@@ -181,13 +183,16 @@ int verificarEliminacao(int id){
 }
 
 /*
-
+Na última volta, o primeiro a passar pela linha de chegada é o vencedor,
+que é mantido para que possa ser inserido na classificação final posteriormente.
 */
 void guardarVencedor(int id){
     idVencedor = id;
 }
 
+/*
+Insere o 1º colocado na classificação final
+*/
 void subidaAoPodio(){
-    
     colocacoesFinais[aFinal++] = idVencedor;
 }
