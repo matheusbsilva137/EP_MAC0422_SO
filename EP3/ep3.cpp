@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <math.h>
+#include <chrono>
 
 using namespace std;
 vector<bool> bitmap;
@@ -329,7 +330,7 @@ void findArquivo(Diretorio *dir, string arq, string s){
 }
 
 int main(){
-    FILE *arq, *arqUsr;
+    FILE *arq, *arqUsr, *arqTimeIns, *arqTimeRmv;
     bool sai = false;
     char c[] = "a";
     char* line, *command, *op1, *op2, *nomeArq, *dir;
@@ -340,12 +341,14 @@ int main(){
     ocupado = "0";
     nextLine = "\n";
 
+    arqTimeIns = fopen("insere.txt", "w");
+    arqTimeRmv = fopen("remove.txt", "w");
+
     while (!sai){
         line = readline(prompt.c_str());
         add_history(line);
         
         command = strtok(line, " ");
-        
         if (strcmp("mount", command) == 0){
             op1 =  strtok(NULL, " ");
             blocosDisco.assign(25000, "\n");
@@ -467,6 +470,7 @@ int main(){
                 diretorioRaiz = new Diretorio("/", obterData(nomeArq, 1), obterData(nomeArq, 2), obterData(nomeArq, 3));
             }
         }else if(strcmp("cp", command) == 0){
+            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
             op1 =  strtok(NULL, " ");
             op2 =  strtok(NULL, " ");
 
@@ -524,6 +528,9 @@ int main(){
             }
 
             dirDestino->filhosArq.push_back(make_pair(novoArq->blocos[0], novoArq));
+
+            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+            fprintf(arqTimeIns, "%d\n", std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count());
         }else if(strcmp("mkdir", command) == 0){
             op1 =  strtok(NULL, " ");
 
@@ -657,6 +664,7 @@ int main(){
                 dirDestino->filhosArq.push_back(make_pair(novoBloco, novoArquivo));
             }else dirDestino->filhosArq[j].second->dataAcesso = data;
         }else if(strcmp("rm", command) == 0){
+            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
             op1 =  strtok(NULL, " ");
 
             dir = strtok(op1, "/");
@@ -684,6 +692,9 @@ int main(){
                 removerArquivo(dirDestino->filhosArq[j].second);
                 dirDestino->filhosArq.erase(dirDestino->filhosArq.begin() + j - 1);
             }
+
+            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+            fprintf(arqTimeRmv, "%d\n", std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count());
         }else if(strcmp("ls", command) == 0){
             op1 =  strtok(NULL, " ");
 
@@ -804,5 +815,7 @@ int main(){
         }else if (strcmp("sai", command) == 0) sai = true;
     }
 
+    fclose(arqTimeRmv);
+    fclose(arqTimeIns);
     return 0;
 }
